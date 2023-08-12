@@ -4,9 +4,9 @@
 **/
 
 module.exports = function (RED) {
-    //"use strict";
+    "use strict";
 
-    var helpers = require("shelly");
+    var helpers = require("./shelly");
 
     // GEN 1 --------------------------------------------------------------------------------------
     
@@ -96,7 +96,7 @@ module.exports = function (RED) {
             }
 
             if (parameters !== '') {
-                route = combineUrl("/relay/" + relay, parameters);
+                route = helpers.combineUrl("/relay/" + relay, parameters);
             }
 
 
@@ -308,7 +308,7 @@ module.exports = function (RED) {
             }
 
             if (parameters !== '') {
-                route = combineUrl("/light/" + light, parameters);
+                route = helpers.combineUrl("/light/" + light, parameters);
             }
         }
         return route;
@@ -384,7 +384,7 @@ module.exports = function (RED) {
             }
 
             if (parameters !== '') {
-                route = combineUrl("/thermostat/" + thermostat, parameters);
+                route = helpers.combineUrl("/thermostat/" + thermostat, parameters);
             }
         }
         return route;
@@ -431,7 +431,7 @@ module.exports = function (RED) {
             }
 
             if (parameters !== '') {
-                route = combineUrl("/input/" + input, parameters);
+                route = helpers.combineUrl("/input/" + input, parameters);
             }
         }
         return route;
@@ -718,25 +718,27 @@ module.exports = function (RED) {
                 result = inputParserButton1Async;
                 break;
             case 'RGBW':
+                node.warn("shelly gen1 getInputParser1 case RGBW hit")
                 result = inputParserRGBW1Async;
                 break;
             default:
-                result = noop;
+                result = helpers.noop;
                 break;
         }
         return result;
     }
 
     // initializes a RGBW node.
-    async function initializerRGBW1Async(node, types){
+    async function initializerRGBW1Async (node, types){
 
         let success = false;
         try {
-            let credentials = getCredentials(node);
-
+            node.warn('in initializerRGBW1Async try');
+            let credentials = helpers.getCredentials(node);
+            node.warn('in initializerRGBW1Async credentials:'+JSON.stringify(credentials));
             let settingsRoute = '/settings';   
             let settings = await helpers.shellyRequestAsync('GET', settingsRoute, null, credentials);
-            
+            node.warn('initializerRGBW1Async says settings:' + JSON.stringify(settings));
             node.rgbwMode = settings.mode;
 
             success = initializer1WebhookAsync(node, types);
@@ -753,7 +755,8 @@ module.exports = function (RED) {
         let success = false;
         let mode = node.mode;
         if(mode === 'polling'){
-            start(node, types);
+            node.warn("this happens right before start in gen1");
+            helpers.start(node, types);
             success = true;
         }
         else if(mode === 'callback'){
@@ -768,7 +771,7 @@ module.exports = function (RED) {
     }
 
     // starts polling or installs a webhook that calls a REST callback.
-    async function initializer1WebhookAsync(node, types){
+    async function initializer1WebhookAsync (node, types){
 
         const sender = node.hostname;
         await tryUninstallWebhook1Async(node, sender); // we ignore if it failed
@@ -776,7 +779,8 @@ module.exports = function (RED) {
         let success = false;
         let mode = node.mode;
         if(mode === 'polling'){
-            await startAsync(node, types);
+            node.warn("this happens right before startAsync in gen1")
+            await helpers.startAsync(node, types);
             success = true;
         }
         else if(mode === 'callback'){
@@ -799,7 +803,7 @@ module.exports = function (RED) {
 
             node.status({ fill: "yellow", shape: "ring", text: "Installing webhook..." });
 
-            let credentials = getCredentials(node);
+            let credentials = helpers.getCredentials(node);
 
             let hookTypes = getHookTypes1(node.deviceType);
 
@@ -963,7 +967,9 @@ module.exports = function (RED) {
 
         switch(deviceType) {
             case 'RGBW':
+                node.warn("getInitializer1 RGBW devicetype RGBW detected");
                 result = initializerRGBW1Async;
+                node.warn("getInitializer1 RGBW Typeof(result): "+Typeof(result))
                 break;
             case 'Measure':
             case 'Roller':
@@ -1113,7 +1119,7 @@ module.exports = function (RED) {
     }
 
     async function getHookTypesFromDevice1(node){
-        let credentials = getCredentials(node);
+        let credentials = helpers.getCredentials(node);
 
         let actionsRoute = '/settings/actions';
         let result = await helpers.shellyRequestAsync('GET', actionsRoute, null, credentials);
@@ -1239,7 +1245,7 @@ module.exports = function (RED) {
         this.port = config.port;
         this.hostname = config.hostname;
         this.hostip = config.hostip;
-        this.server = fastify();
+        this.server = helpers.fastify();
         
         if(node.port > 0){
             node.server.listen({port : node.port}, (err, address) => {
@@ -1270,7 +1276,7 @@ module.exports = function (RED) {
             });
         }
             
-        this.on('close', function (removed, done) {
+        this.on('close', (removed, done) => {
             node.server.close().then(() => {
                 done();
             });
@@ -1318,16 +1324,21 @@ module.exports = function (RED) {
         node.status({});
 
         if(deviceType !== undefined && deviceType !== "") {
-            node.initializer = getInitializer1(deviceType);
+            node.warn("shellyGen1Node getinitializer1: devicetype:"+JSON.stringify(deviceType));
+            console.log("-------------- do you see this? --------------")
+            let initializer = getInitializer1(deviceType);
+            node.warn("let initializer: "+initializer);
+            node.warn("shellyGen1Node getInputParser1: "+JSON.stringify(node.initializer));
             node.inputParser = getInputParser1(deviceType);
+            node.warn("shellyGen1Node getDeviceTypes1: "+JSON.stringify(node.inputParser));
             node.types = getDeviceTypes1(deviceType);
-            
+            node.warn("shellyGen1Node async: "+JSON.stringify(node.types));
             (async () => {
                 let initialized = await node.initializer(node, node.types);
 
                 // if the device is not online, then we wait until it is available and try again.
                 if(!initialized){
-                    node.initializeTimer = setInterval(async function() {
+                    node.initializeTimer = setInterval(async () => {
 
                         let initialized = await node.initializer(node, node.types);
                         if(initialized){
@@ -1337,9 +1348,9 @@ module.exports = function (RED) {
                 }
             })();
             
-            this.on('input', async function (msg) {
-
-                let credentials = getCredentials(node, msg);
+            this.on('input', async (msg)  => {
+                node.warn("on input"+JSON.stringify(msg))
+                let credentials = helpers.getCredentials(node, msg);
 
                 let settings = msg.settings;
                 let success = await applySettings1Async(settings, node, credentials);
@@ -1351,7 +1362,7 @@ module.exports = function (RED) {
             
             // Callback mode:
             if(node.server !== null && node.server !== undefined && node.mode === 'callback') {
-                node.onCallback = function (data) {
+                node.onCallback = (data) => {
                     if(data.sender === node.hostname){
                         if(node.outputMode === 'event'){
                             let msg = {
@@ -1370,7 +1381,8 @@ module.exports = function (RED) {
                 node.server.addListener('callback', node.onCallback);
             }
 
-            this.on('close', function(done) {
+            this.on('close', (done) => {
+                node.warn("on close"+JSON.stringify(msg))
                 node.status({});
 
                 if (node.onCallback) {
@@ -1394,6 +1406,12 @@ module.exports = function (RED) {
             username: { type: "text" },
             password: { type: "password" },
         }
+    });
+
+    RED.httpAdmin.get("/node-red-contrib-shelly-getipaddresses", (req, res) => {
+        console.log('shelly-gen1.js hit RED.httpAdmin.get("/node-red-contrib-shelly-getipaddresses req"'+JSON.stringify(req)+' res:'+JSON.stringify(res))
+        let ipAddresses = helpers.getIPAddresses();
+        res.json(ipAddresses);
     });
     
 }

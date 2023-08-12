@@ -4,10 +4,10 @@
 **/
 
 module.exports = function (RED) {
-    //"use strict";
+    "use strict";
 
-    var helpers = require("shelly");
-    cloudAxios = helpers.rateLimit(axios.create(), { maxRequests: 1, perMilliseconds: 1000, maxRPS: 1 });
+    var helpers = require("./shelly");
+    var cloudAxios = helpers.rateLimit(helpers.axios.create(), { maxRequests: 1, perMilliseconds: 1000, maxRPS: 1 });
     // CLOUD API ----------------------------------------------------------------------------------
     // see https://shelly-api-docs.shelly.cloud/cloud-control-api/
 
@@ -24,7 +24,7 @@ module.exports = function (RED) {
 
     // generic REST cloud request wrapper with promise
     function shellyCloudRequestAsync(method, route, data, credentials, timeout){
-        return new Promise(function (resolve, reject) {
+        return new Promise((resolve, reject) => {
 
             if(timeout === undefined || timeout === null){
                 timeout = 10000;
@@ -53,7 +53,7 @@ module.exports = function (RED) {
 
             try
             {
-                const request = helpers.cloudAxios.request(config);
+                const request = cloudAxios.request(config);
         
                 request.then(response => {
                     if(response.status == 200){
@@ -79,10 +79,10 @@ module.exports = function (RED) {
 
         let node = this;
 
-        node.serverUri = trim(node.credentials.serveruri);
-        node.authKey = trim(node.credentials.authkey);
+        node.serverUri = helpers.trim(node.credentials.serveruri);
+        node.authKey = helpers.trim(node.credentials.authkey);
 
-        this.getCredentials = function () {
+        helpers.getCredentials = () => {
             const credentials = {
                 serverUri : node.serverUri,
                 authKey : node.authKey
@@ -109,7 +109,7 @@ module.exports = function (RED) {
         
         node.status({});
 
-        this.on('input', async function (msg) {
+        this.on('input', async (msg) => {
 
             try {
                 let route;
@@ -193,11 +193,18 @@ module.exports = function (RED) {
             }
         });
         
-        this.on('close', function(done) {
+        this.on('close', (done) => {
             node.status({});
             done();
         });
     }
+    
     RED.nodes.registerType("shelly-cloud", ShellyCloudNode, {});
     
+    RED.httpAdmin.get("/node-red-contrib-shelly-getipaddresses", (req, res) => {
+        console.log('shelly-clout.js hit RED.httpAdmin.get("/node-red-contrib-shelly-getipaddresses req"'+JSON.stringify(req)+' res:'+JSON.stringify(res))
+        let ipAddresses = helpers.getIPAddresses();
+        res.json(ipAddresses);
+    });
+
 }

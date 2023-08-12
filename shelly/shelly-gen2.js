@@ -6,7 +6,7 @@
 module.exports = function (RED) {
     //"use strict";
 
-    var helpers = require("shelly");
+    var helpers = require("./shelly");
 
     // GEN 2 --------------------------------------------------------------------------------------
         
@@ -51,7 +51,7 @@ module.exports = function (RED) {
                         'code' : codeToSend,
                         'append' : true
                     };
-                    await shellyRequestAsync('POST', '/rpc/Script.PutCode', putParams, credentials);
+                    await helpers.shellyRequestAsync('POST', '/rpc/Script.PutCode', putParams, credentials);
 
                 } while (!done);
 
@@ -59,17 +59,17 @@ module.exports = function (RED) {
                     'id' : scriptId,
                     'config' : {'enable' : true}
                 };
-                await shellyRequestAsync('GET', '/rpc/Script.SetConfig', configParams, credentials);
+                await helpers.shellyRequestAsync('GET', '/rpc/Script.SetConfig', configParams, credentials);
                 
                 let startParams = {  
                     'id' : scriptId,
                 };
-                await shellyRequestAsync('POST', '/rpc/Script.Start', startParams, credentials);
+                await helpers.shellyRequestAsync('POST', '/rpc/Script.Start', startParams, credentials);
                 
                 let statusParams = {  
                     'id' : scriptId,
                 };
-                let status = await shellyRequestAsync('GET', '/rpc/Script.GetStatus', statusParams, credentials);
+                let status = await helpers.shellyRequestAsync('GET', '/rpc/Script.GetStatus', statusParams, credentials);
 
                 if(status.running === true){
                     node.status({ fill: "green", shape: "ring", text: "Connected." });
@@ -99,20 +99,20 @@ module.exports = function (RED) {
             let credentials = helpers.getCredentials(node);
 
             try {
-                let scriptListResponse = await shellyRequestAsync('GET', '/rpc/Script.List', null, credentials);
+                let scriptListResponse = await helpers.shellyRequestAsync('GET', '/rpc/Script.List', null, credentials);
             
                 for (let scriptItem of scriptListResponse.scripts) {
                     if(scriptItem.name == scriptName){
                         let params = {  
                             'id' : scriptItem.id,
                         };
-                        let status = await shellyRequestAsync('GET', '/rpc/Script.GetStatus', params, credentials);
+                        let status = await helpers.shellyRequestAsync('GET', '/rpc/Script.GetStatus', params, credentials);
 
                         if(status.running === true){
-                            await shellyRequestAsync('POST', '/rpc/Script.Stop', params, credentials);
+                            await helpers.shellyRequestAsync('POST', '/rpc/Script.Stop', params, credentials);
                         }
 
-                        await shellyRequestAsync('GET', '/rpc/Script.Delete', params, credentials);
+                        await helpers.shellyRequestAsync('GET', '/rpc/Script.Delete', params, credentials);
                     }
                 };                
             }
@@ -138,16 +138,16 @@ module.exports = function (RED) {
 
             try {
                 // Remove all old webhooks async.
-                let webhookListResponse = await shellyRequestAsync('GET', '/rpc/Webhook.List', null, credentials);
+                let webhookListResponse = await helpers.shellyRequestAsync('GET', '/rpc/Webhook.List', null, credentials);
                 for (let webhookItem of webhookListResponse.hooks) {
                     if(webhookItem.name == webhookName){
                         let deleteParams = { 'id' : webhookItem.id };
-                        let deleteWebhookResonse = await shellyRequestAsync('GET', '/rpc/Webhook.Delete', deleteParams, credentials);
+                        let deleteWebhookResonse = await helpers.shellyRequestAsync('GET', '/rpc/Webhook.Delete', deleteParams, credentials);
                     }
                 };
 
                 // Create new webhooks.
-                let supportedEventsResponse = await shellyRequestAsync('GET', '/rpc/Webhook.ListSupported', null, credentials);
+                let supportedEventsResponse = await helpers.shellyRequestAsync('GET', '/rpc/Webhook.ListSupported', null, credentials);
                 for (let hookType of supportedEventsResponse.hook_types) {  
                     let sender = node.hostname;
                     let url = webhookUrl + '?hookType=' + hookType + '&sender=' + sender;
@@ -158,7 +158,7 @@ module.exports = function (RED) {
                         'enable' : true,
                         "urls": [url]
                     };
-                    let createWebhookResonse = await shellyRequestAsync('GET', '/rpc/Webhook.Create', createParams, credentials);
+                    let createWebhookResonse = await helpers.shellyRequestAsync('GET', '/rpc/Webhook.Create', createParams, credentials);
 
                     node.status({ fill: "green", shape: "ring", text: "Connected." });
                     success = true;
@@ -185,12 +185,12 @@ module.exports = function (RED) {
             let credentials = helpers.getCredentials(node);
 
             try {
-                let webhookListResponse = await shellyRequestAsync('GET', '/rpc/Webhook.List', null, credentials);
+                let webhookListResponse = await helpers.shellyRequestAsync('GET', '/rpc/Webhook.List', null, credentials);
             
                 for (let webhookItem of webhookListResponse.hooks) {
                     if(webhookItem.name == webhookName){
                         let deleteParams = { 'id' : webhookItem.id };
-                        let deleteWebhookResonse = await shellyRequestAsync('GET', '/rpc/Webhook.Delete', deleteParams, credentials);
+                        let deleteWebhookResonse = await helpers.shellyRequestAsync('GET', '/rpc/Webhook.Delete', deleteParams, credentials);
                     }
                 };
             }
@@ -269,7 +269,7 @@ module.exports = function (RED) {
         let success = false;
         let mode = node.mode;
         if(mode === 'polling'){
-            start(node, types);
+            helpers.start(node, types);
             success = true;
         }
         else if(mode === 'callback'){
@@ -292,7 +292,7 @@ module.exports = function (RED) {
         let success = false;
         let mode = node.mode;
         if(mode === 'polling'){
-            await startAsync(node, types);
+            await helpers.startAsync(node, types);
             success = true;
         }
         else if(mode === 'callback'){
@@ -326,7 +326,7 @@ module.exports = function (RED) {
         let success = false;
         let mode = node.mode;
         if(mode === 'polling'){
-            await startAsync(node, types);
+            await helpers.startAsync(node, types);
             success = true;
         }
         else if(mode === 'callback'){
@@ -467,7 +467,7 @@ module.exports = function (RED) {
         this.port = config.port;
         this.hostname = config.hostname;
         this.hostip = config.hostip;
-        this.server = fastify();
+        this.server = helpers.fastify();
 
         if(node.port > 0){
             node.server.listen({port : node.port}, (err, address) => {
@@ -566,7 +566,7 @@ module.exports = function (RED) {
                 }
             })();
 
-            this.on('input', async function (msg) {
+            this.on('input', async (msg) => {
                 let credentials = helpers.getCredentials(node, msg);
                 let request = await node.inputParser(msg, node, credentials);
                 executeCommand2(msg, request, node, credentials);
@@ -574,7 +574,7 @@ module.exports = function (RED) {
 
             // Callback mode:
             if(node.server !== null && node.server !== undefined && node.mode === 'callback') {
-                node.onCallback = function (data) {
+                node.onCallback = (data) => {
                     if(data.sender === node.hostname){
                         if(node.outputMode === 'event'){
                             let msg = {
@@ -593,7 +593,7 @@ module.exports = function (RED) {
                 node.server.addListener('callback', node.onCallback);
             }
 
-            this.on('close', function(done) {
+            this.on('close', (done) => {
                 node.status({});
 
                 if (node.onCallback) {
@@ -619,4 +619,10 @@ module.exports = function (RED) {
         }
     });
     
+    RED.httpAdmin.get("/node-red-contrib-shelly-getipaddresses", function(req, res) {
+        console.log('shelly-gen2.js hit RED.httpAdmin.get("/node-red-contrib-shelly-getipaddresses req"'+JSON.stringify(req)+' res:'+JSON.stringify(res))
+        let ipAddresses = helpers.getIPAddresses();
+        res.json(ipAddresses);
+    });
+
 }

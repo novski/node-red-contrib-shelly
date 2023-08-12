@@ -80,7 +80,7 @@ module.exports = {
 
     // ToDo: check what this is for.
     // RED.httpAdmin.get("/node-red-contrib-shelly-getipaddresses", function(req, res) {
-    //     let ipAddresses = getIPAddresses();
+    //     let ipAddresses = this.getIPAddresses();
     //     res.json(ipAddresses);
     // });
 
@@ -95,7 +95,7 @@ module.exports = {
             ipAddress = node.server.hostname;
         }
         else {
-            let ipAddresses = getIPAddresses();
+            let ipAddresses = this.getIPAddresses();
             if (ipAddresses !== undefined && ipAddresses.length > 0) {
                 ipAddress =  ipAddresses[0];
             }
@@ -109,7 +109,7 @@ module.exports = {
 
     // extracts the credentials from the message and the node.
     getCredentials: function (node, msg){
-
+        node.warn('in getCredentials msg:'+JSON.stringify(msg)+" node:"+JSON.stringify(node));
         let hostname;
         let username;
         let password;
@@ -148,7 +148,7 @@ module.exports = {
 
     // Encrypts a string using SHA-256.
     sha256: function (str){
-        let result = crypto.createHash('sha256').update(str).digest('hex');
+        let result = this.crypto.createHash('sha256').update(str).digest('hex');
         return result;
     },
 
@@ -159,25 +159,25 @@ module.exports = {
         let propertiesArray = authDetails.map(v => v.split('='));
         let properties = new Map(propertiesArray.map(obj => [obj[0], obj[1]]));
 
-        nonceCount++; // global counter
+        this.nonceCount++; // global counter
         let url = config.url;
         let method = config.method;
 
         let algorithm = properties.get('algorithm'); // TODO: check if it is still SHA-256 
         let username = credentials.username;
         let password = credentials.password;
-        let realm = replace(properties.get('realm'), /"/g, '');
+        let realm = this.replace(properties.get('realm'), /"/g, '');
         let authParts = [username, realm, password];
 
         let ha1String = authParts.join(':');
-        let ha1 = sha256(ha1String);
+        let ha1 = this.sha256(ha1String);
         let ha2String = method + ':' + url;
-        let ha2 = sha256(ha2String);
-        let nc = ('00000000' + nonceCount).slice(-8);
-        let nonce = replace(properties.get('nonce'), /"/g, '');
-        let cnonce = crypto.randomBytes(24).toString('hex');
+        let ha2 = this.sha256(ha2String);
+        let nc = ('00000000' + this.nonceCount).slice(-8);
+        let nonce = this.replace(properties.get('nonce'), /"/g, '');
+        let cnonce = this.crypto.randomBytes(24).toString('hex');
         let responseString = ha1 + ":" + nonce + ":" + nc + ":" + cnonce + ":" + "auth" + ":" + ha2;
-        let responseHash = sha256(responseString);
+        let responseHash = this.sha256(responseString);
 
         const authorization = 
             'Digest username="' + username + 
@@ -200,7 +200,9 @@ module.exports = {
             if(credentials.authType === 'Basic') {
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                     // Authorization is case sensitive for some devices like the TRV!
-                    headers.Authorization = "Basic " + Buffer.from(credentials.username + ":" + credentials.password).toString("base64");
+                    headers.Authorization = "Basic " + 
+                                            Buffer.from(credentials.username + ":" + 
+                                                        credentials.password).toString("base64");
                 };
             }
         }
@@ -210,8 +212,9 @@ module.exports = {
 
     // Note that this function has a reduced timeout.
     shellyTryGet: function (route, node, credentials, timeout, callback, errorCallback){
+        node.warn("tryGet"+JSON.stringify(node))
         let data;
-        return shellyTryRequest('GET', route, data, node, credentials, timeout, callback, errorCallback);
+        return this.shellyTryRequest('GET', route, data, node, credentials, timeout, callback, errorCallback);
     },
 
     // Note that this function has a reduced timeout.
@@ -227,7 +230,7 @@ module.exports = {
             requestTimeout = 5000;
         }
 
-        let headers = getHeaders(credentials);
+        let headers = this.getHeaders(credentials);
 
         let baseUrl = 'http://' + credentials.hostname;
         let config = {
@@ -242,7 +245,7 @@ module.exports = {
 
         try
         {
-            const request = axios.request(config);
+            const request = this.axios.request(config);
 
             request.then(response => {
                 if(response.status == 200){
@@ -250,10 +253,10 @@ module.exports = {
                 }
                 else if(response.status == 401){
                     config.headers = {
-                        'Authorization': getDigestAuthorization(response, credentials, config)
+                        'Authorization': this.getDigestAuthorization(response, credentials, config)
                     }
 
-                    const digestRequest = axios.request(config);
+                    const digestRequest = this.axios.request(config);
                     digestRequest.then(response => {
                         if(response.status == 200){
                             callback(response.data);
@@ -280,8 +283,9 @@ module.exports = {
 
     // generic REST request wrapper with promise
     shellyRequestAsync: function (method, route, data, credentials, timeout){
-        return new Promise(function (resolve, reject) {
-
+        node.warn('shellyRequestAsync');
+        return new Promise((resolve, reject) => {
+            node.warn('shellyRequestAsync new Promise');
             if(timeout === undefined || timeout === null){
                 timeout = 5000;
             };
@@ -291,8 +295,8 @@ module.exports = {
             if(requestTimeout <= 0){
                 requestTimeout = 5000;
             }
-
-            let headers = getHeaders(credentials);
+            node.warn('shellyRequestAsync new Promise with credentials:'+JSON.stringify(credentials));
+            let headers = this.getHeaders(credentials);
 
             let baseUrl = 'http://' + credentials.hostname;
             let config = {
@@ -304,20 +308,21 @@ module.exports = {
                 timeout: requestTimeout,
                 validateStatus : (status) => status === 200 || status === 401
             };
-
+            
             try
-            {
-                const request = axios.request(config);
-        
+            {   
+                node.warn('shellyRequestAsync try with config:'+JSON.stringify(config));
+                const request = this.axios.request(config);
+                node.warn('shellyRequestAsync then with request:'+JSON.stringify(request));
                 request.then(response => {
                     if(response.status == 200){
                         resolve(response.data)
                     } else if(response.status == 401){
                         config.headers = {
-                            'Authorization': getDigestAuthorization(response, credentials, config)
+                            'Authorization': this.getDigestAuthorization(response, credentials, config)
                         }
         
-                        const digestRequest = axios.request(config);
+                        const digestRequest = this.axios.request(config);
                         digestRequest.then(response => {
                             if(response.status == 200){
                                 resolve(response.data)
@@ -345,7 +350,7 @@ module.exports = {
     shellyPing: function (node, credentials, types){
 
         // gen 1 and gen 2 devices support this endpoint (gen 2 return the same info for /rpc/Shelly.GetDeviceInfo)
-        shellyTryGet('/shelly', node, credentials, node.pollInterval, function(body) {
+        this.shellyTryGet('/shelly', node, credentials, node.pollInterval, function(body) {
             node.shellyInfo = body;
 
             let requiredNodeType;
@@ -400,14 +405,16 @@ module.exports = {
 
     // Starts polling the status.
     start: function (node, types){
+        node.warn('this happens right in start');
         if(node.hostname !== ''){    
 
-            let credentials = getCredentials(node);
-            shellyPing(node, credentials, types);
+            let credentials = this.getCredentials(node);
+            this.shellyPing(node, credentials, types);
 
             if(node.pollInterval > 0) {
-                node.pollingTimer = setInterval(function() {
-                    shellyPing(node, credentials, types);
+                node.pollingTimer = setInterval(() => {
+                    
+                    this.shellyPing(node, credentials, types);
 
                     if(node.pollStatus){
                         node.emit("input", {});
@@ -424,8 +431,9 @@ module.exports = {
     },
 
     startAsync: function (node, types){
-        return new Promise(function (resolve, reject) {
-            start(node, types);
+        node.warn('this happens right in startAsync');
+        return new Promise((resolve, reject) => {
+            this.start(node, types);
             resolve();
         });
     }

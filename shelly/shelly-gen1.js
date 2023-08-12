@@ -964,7 +964,7 @@ module.exports = function (RED) {
     // Gets a function that initialize the device.
     function getInitializer1(deviceType){
         let result;
-
+        node.warn("getInitializer1 deviceType:"+JSON.stringify(deviceType))
         switch(deviceType) {
             case 'RGBW':
                 node.warn("getInitializer1 RGBW devicetype RGBW detected");
@@ -981,9 +981,11 @@ module.exports = function (RED) {
                 result = initializer1WebhookAsync;
                 break;
             default:
+                node.warn("getInitializer1 default hit")
                 result = initializer1;
                 break;
         }
+        node.warn("getInitializer1 result:"+JSON.stringify(result))
         return result;
     }
 
